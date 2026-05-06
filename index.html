@@ -3,67 +3,51 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Patrimônio Pro — Nova Russas</title>
+    <title>BUSCA OFFLINE - Patrimônio</title>
     <style>
-        :root { --primary: #3b82f6; --bg: #0b0d11; --surface: #13161e; --surface2: #1b1f2b; --border: rgba(255,255,255,0.07); --text: #e2e8f0; --muted: #64748b; --danger: #ef4444; }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; overflow-x: hidden; }
-        .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 200; }
-        .search-wrap { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; position: sticky; top: 57px; z-index: 150; }
-        .search-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; color: white; font-size: 20px; outline: none; }
-        #cameraWrap { display: none; margin: 12px auto 0; width: 100%; max-width: 400px; height: 250px; border-radius: 12px; overflow: hidden; border: 2px solid var(--primary); position: relative; background: #000; }
-        #video { width: 100%; height: 100%; object-fit: cover; }
-        .btn-snap { position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); width: 45px; height: 45px; border-radius: 50%; background: white; border: 3px solid var(--primary); cursor: pointer; z-index: 10; }
-        .main { padding: 20px; max-width: 800px; margin: 0 auto; }
-        .modules-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 15px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .module-tag { background: rgba(59,130,246,0.1); border: 1px solid #3b82f6; color: #3b82f6; border-radius: 6px; padding: 4px 10px; font-size: 11px; display: flex; align-items: center; }
+        :root { --primary: #3b82f6; --bg: #0b0d11; --surface: #13161e; --text: #e2e8f0; --border: rgba(255,255,255,0.1); }
+        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .search-input { 
+            width: 100%; background: #1b1f2b; border: 2px solid var(--primary); 
+            border-radius: 10px; padding: 15px; color: white; font-size: 22px; 
+            margin-bottom: 20px; outline: none;
+        }
         .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 15px; margin-bottom: 10px; }
-        .btn-add { background: var(--primary); color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-        .btn-clean { background: none; border: 1px solid var(--danger); color: var(--danger); padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .count { font-size: 14px; color: var(--primary); font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="topbar">
-    <div style="font-weight:600; color:var(--primary)">Patrimônio/pro</div>
-    <div style="display:flex; gap:15px; align-items:center">
-        <span id="totalCount" style="font-size:12px">0 itens</span>
-        <button class="btn-clean" onclick="limparTudo()">Reset</button>
-    </div>
+<div class="header">
+    <div style="font-weight:bold; font-size:18px">Patrimônio Pro</div>
+    <div id="totalCount" class="count">0 itens</div>
 </div>
 
-<div class="search-wrap">
-    <div style="display:flex; gap:8px; max-width:680px; margin:0 auto">
-        <input type="text" id="searchInput" class="search-input" placeholder="Pesquisar..." oninput="filtrar()">
-        <button id="camBtn" style="padding:0 15px; border:none; background:var(--primary); border-radius:10px; cursor:pointer" onclick="toggleCamera()">📷</button>
-    </div>
-    <div id="cameraWrap">
-        <video id="video" autoplay playsinline></video>
-        <div class="btn-snap" onclick="capturarFoto()"></div>
-    </div>
-</div>
+<input type="text" id="searchInput" class="search-input" placeholder="Digite o tombo aqui..." onkeyup="filtrar()">
 
-<div class="main">
-    <div class="modules-bar">
-        <div id="moduleList" style="flex:1; display:flex; gap:8px; flex-wrap:wrap"></div>
-        <button class="btn-add" onclick="carregarBibliotecasEDados()">+ Excel</button>
-        <input type="file" id="fileInput" hidden accept=".xlsx,.xls" multiple>
-    </div>
-    <div id="cardContainer"></div>
-</div>
+<div id="cardContainer"></div>
 
 <script>
     let DATABASE = [];
 
-    // Carrega dados locais IMEDIATAMENTE sem esperar nada externo
-    function iniciarBusca() {
+    // Carrega o que já está salvo no seu celular das versões anteriores
+    function carregar() {
         const raw = localStorage.getItem('pat_db_v5');
         DATABASE = raw ? JSON.parse(raw) : [];
-        renderizarLista();
+        document.getElementById('totalCount').textContent = DATABASE.length + " itens carregados";
+        filtrar();
     }
 
     function filtrar() {
         const term = document.getElementById('searchInput').value.toLowerCase();
+        const container = document.getElementById('cardContainer');
+        
+        if (term.length < 2 && term !== "") {
+            container.innerHTML = '<div style="opacity:0.5; text-align:center">Digite ao menos 2 números...</div>';
+            return;
+        }
+
         const lista = DATABASE.filter(i => i.t.includes(term));
         const mostrados = new Set();
         
@@ -73,96 +57,22 @@
             return true;
         }).map(i => `
             <div class="card">
-                <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--muted)">
-                    <span>${i.m}</span><b style="color:var(--primary); font-size:16px">#${i.t}</b>
+                <div style="display:flex; justify-content:space-between; opacity:0.6; font-size:12px">
+                    <span>${i.m}</span><b>#${i.t}</b>
                 </div>
-                <div style="margin:8px 0; font-size:14px">${i.d}</div>
-                <div style="display:grid; grid-template-columns:1fr 1fr 1fr; font-size:10px; border-top:1px solid var(--border); padding-top:8px">
-                    <div>ST: <b>${i.s}</b></div>
-                    <div>DATA: ${i.da}</div>
-                    <div>VALOR: ${i.v}</div>
+                <div style="margin:10px 0; font-size:16px; font-weight:500">${i.d}</div>
+                <div style="font-size:11px; border-top:1px solid var(--border); padding-top:10px; display:grid; grid-template-columns: 1fr 1fr">
+                    <div>Status: ${i.s}</div>
+                    <div>Data: ${i.da}</div>
                 </div>
             </div>
         `).join('');
-        document.getElementById('cardContainer').innerHTML = html || '<div style="text-align:center; padding:20px; opacity:0.3">Nada encontrado</div>';
+
+        container.innerHTML = html || '<div style="text-align:center; padding:20px; opacity:0.3">Nenhum tombo encontrado.</div>';
     }
 
-    function renderizarLista() {
-        document.getElementById('totalCount').textContent = DATABASE.length + " itens";
-        const mods = [...new Set(DATABASE.map(i => i.m))];
-        document.getElementById('moduleList').innerHTML = mods.map(m => `
-            <div class="module-tag">${m} <span onclick="removerModulo('${m}')" style="margin-left:8px; cursor:pointer; color:var(--danger)">×</span></div>
-        `).join('');
-        filtrar();
-    }
-
-    function limparTudo() { if(confirm("Resetar?")) { DATABASE=[]; localStorage.setItem('pat_db_v5', '[]'); renderizarLista(); } }
-    function removerModulo(n) { DATABASE=DATABASE.filter(i=>i.m!==n); localStorage.setItem('pat_db_v5', JSON.stringify(DATABASE)); renderizarLista(); }
-
-    // CARREGAMENTO SOB DEMANDA (Evita o travamento do Chrome Offline)
-    async function carregarBibliotecasEDados() {
-        if (typeof XLSX === 'undefined') {
-            const script = document.createElement('script');
-            script.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
-            script.onload = () => document.getElementById('fileInput').click();
-            script.onerror = () => alert("Você precisa de internet para importar arquivos pela primeira vez.");
-            document.head.appendChild(script);
-        } else {
-            document.getElementById('fileInput').click();
-        }
-    }
-
-    document.getElementById('fileInput').addEventListener('change', async function(e) {
-        const files = Array.from(e.target.files);
-        for (const file of files) {
-            const data = await file.arrayBuffer();
-            const wb = XLSX.read(new Uint8Array(data), {type:'array'});
-            wb.SheetNames.forEach(s => {
-                const rows = XLSX.utils.sheet_to_json(wb.Sheets[s], {header:1});
-                rows.forEach(r => {
-                    const t = String(r[0]||'').replace(/[^0-9]/g,'');
-                    if(t.length >= 3) DATABASE.push({t:t, d:String(r[1]||''), da:String(r[2]||''), s:String(r[3]||''), v:String(r[4]||''), m:file.name});
-                });
-            });
-        }
-        localStorage.setItem('pat_db_v5', JSON.stringify(DATABASE));
-        renderizarLista();
-    });
-
-    // Câmera só tenta carregar o Tesseract quando você clica nela
-    async function toggleCamera() {
-        if (typeof Tesseract === 'undefined') {
-            const script = document.createElement('script');
-            script.src = "https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js";
-            script.onload = () => ligarCam();
-            script.onerror = () => alert("Câmera OCR requer internet.");
-            document.head.appendChild(script);
-        } else { ligarCam(); }
-    }
-
-    async function ligarCam() {
-        const w = document.getElementById('cameraWrap');
-        if(window.s) { window.s.getTracks().forEach(t=>t.stop()); window.s=null; w.style.display='none'; }
-        else {
-            window.s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-            document.getElementById('video').srcObject = window.s;
-            w.style.display='block';
-        }
-    }
-
-    async function capturarFoto() {
-        const video = document.getElementById('video');
-        const canvas = document.createElement('canvas');
-        canvas.width = video.videoWidth; canvas.height = video.videoHeight;
-        canvas.getContext('2d').drawImage(video, 0, 0);
-        ligarCam();
-        const { data: { text } } = await Tesseract.recognize(canvas, 'eng');
-        const num = text.replace(/[^0-9]/g, '');
-        if(num) { document.getElementById('searchInput').value = num; filtrar(); }
-    }
-
-    // Inicia a lógica de busca sem depender de nada externo
-    iniciarBusca();
+    // Inicia na hora
+    carregar();
 </script>
 </body>
 </html>
