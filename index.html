@@ -15,17 +15,23 @@
         .search-wrap { background: var(--surface); border-bottom: 1px solid var(--border); padding: 14px 24px; position: sticky; top: 57px; z-index: 150; }
         .search-input { width: 100%; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; color: white; font-family: 'IBM Plex Mono'; font-size: 20px; outline: none; }
         .main { padding: 20px; max-width: 800px; margin: 0 auto; }
+        .modules-bar { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 15px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .module-tag { background: rgba(59,130,246,0.1); border: 1px solid #3b82f6; color: #3b82f6; border-radius: 6px; padding: 4px 10px; font-size: 11px; display: flex; align-items: center; }
         .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 15px; margin-bottom: 10px; }
+        .btn-add { background: var(--primary); color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+        .btn-clean { background: none; border: 1px solid var(--danger); color: var(--danger); padding: 4px 8px; border-radius: 6px; cursor: pointer; font-size: 11px; }
         #cameraWrap { display: none; margin: 12px auto 0; width: 100%; max-width: 400px; height: 250px; border-radius: 12px; overflow: hidden; border: 2px solid var(--primary); position: relative; background: #000; }
         #video { width: 100%; height: 100%; object-fit: cover; }
-        .btn-add { background: var(--primary); color: white; border: none; padding: 8px 15px; border-radius: 8px; cursor: pointer; font-weight: 600; }
     </style>
 </head>
 <body>
 
 <div class="topbar">
     <div style="font-family:'IBM Plex Mono'; font-weight:600; color:var(--primary)">Patrimônio/pro</div>
-    <span id="totalCount" style="font-size:12px; font-family:monospace">0 itens</span>
+    <div style="display:flex; gap:15px; align-items:center">
+        <span id="totalCount" style="font-size:12px; font-family:monospace">0 itens</span>
+        <button class="btn-clean" onclick="limparTudo()">🗑️ Resetar</button>
+    </div>
 </div>
 
 <div class="search-wrap">
@@ -37,33 +43,68 @@
 </div>
 
 <div class="main">
-    <div id="offlineNotice" style="display:none; background: #443a15; color: #f6e05e; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 12px; text-align: center;">
-        Modo Offline: Busca liberada. (Importar Excel/Câmera requer internet)
+    <div id="offlineNotice" style="display:none; background: #443a15; color: #f6e05e; padding: 10px; border-radius: 8px; margin-bottom: 15px; font-size: 11px; text-align: center;">
+        MODO OFFLINE ATIVO: Importação e Câmera desabilitadas.
     </div>
-    <div style="margin-bottom:15px; display:flex; justify-content: flex-end;">
-        <button class="btn-add" onclick="document.getElementById('fileInput').click()">+ Adicionar Dados</button>
+    
+    <div class="modules-bar">
+        <div id="moduleList" style="flex:1; display:flex; gap:8px; flex-wrap:wrap"></div>
+        <button class="btn-add" onclick="document.getElementById('fileInput').click()">+ Excel</button>
         <input type="file" id="fileInput" hidden accept=".xlsx,.xls" multiple>
     </div>
+
     <div id="cardContainer"></div>
 </div>
 
 <script>
 let DATABASE = [];
 
-// CARREGAR DADOS IMEDIATAMENTE (NÃO DEPENDE DE NADA)
+function salvar() {
+    localStorage.setItem('pat_db_v5', JSON.stringify(DATABASE));
+    renderizarInterface();
+}
+
 function carregar() {
     try {
         const raw = localStorage.getItem('pat_db_v5');
         DATABASE = raw ? JSON.parse(raw) : [];
-        document.getElementById('totalCount').textContent = DATABASE.length + " itens";
-        filtrar();
         
-        // Verifica se as bibliotecas carregaram, se não, avisa o usuário
+        // Verifica conexão com bibliotecas
         if (typeof XLSX === 'undefined') {
             document.getElementById('offlineNotice').style.display = 'block';
-            document.getElementById('camBtn').style.opacity = '0.5';
+            document.getElementById('camBtn').style.opacity = '0.3';
         }
-    } catch(e) { console.error("Erro ao carregar banco local"); }
+        
+        renderizarInterface();
+    } catch(e) { console.error("Erro ao carregar dados"); }
+}
+
+function limparTudo() {
+    if(confirm("Isso vai apagar todos os tombos carregados. Confirma?")) {
+        DATABASE = [];
+        salvar();
+    }
+}
+
+function removerModulo(nome) {
+    DATABASE = DATABASE.filter(i => i.m !== nome);
+    salvar();
+}
+
+function renderizarInterface() {
+    // Atualiza Contador
+    document.getElementById('totalCount').textContent = DATABASE.length + " itens";
+    
+    // Atualiza Lista de Arquivos (Módulos)
+    const mods = [...new Set(DATABASE.map(i => i.m))];
+    document.getElementById('moduleList').innerHTML = mods.map(m => `
+        <div class="module-tag">
+            ${m} 
+            <span onclick="removerModulo('${m}')" style="margin-left:8px; cursor:pointer; color:var(--danger); font-weight:bold">×</span>
+        </div>
+    `).join('');
+    
+    filtrar();
 }
 
 function filtrar() {
@@ -89,12 +130,12 @@ function filtrar() {
         </div>
     `).join('');
     
-    document.getElementById('cardContainer').innerHTML = html || '<div style="text-align:center; opacity:0.5">Nenhum tombo encontrado.</div>';
+    document.getElementById('cardContainer').innerHTML = html || '<div style="text-align:center; padding:40px; opacity:0.3">Nenhum tombo encontrado</div>';
 }
 
-// FUNÇÕES QUE DEPENDEM DE INTERNET COM TRAVA DE SEGURANÇA
+// Funções de Importação
 document.getElementById('fileInput').addEventListener('change', async function(e) {
-    if (typeof XLSX === 'undefined') return alert("Você precisa de internet para importar novos arquivos Excel.");
+    if (typeof XLSX === 'undefined') return alert("Erro: Biblioteca Excel não carregada. Conecte-se à internet para importar.");
     
     const files = Array.from(e.target.files);
     for (const file of files) {
@@ -107,7 +148,11 @@ document.getElementById('fileInput').addEventListener('change', async function(e
                     const rows = XLSX.utils.sheet_to_json(wb.Sheets[s], {header:1});
                     rows.forEach(r => {
                         const t = String(r[0]||'').replace(/[^0-9]/g,'');
-                        if(t.length >= 3) DATABASE.push({id:Math.random(), t:t, d:String(r[1]||''), da:String(r[2]||''), s:String(r[3]||''), v:String(r[4]||''), m:file.name});
+                        if(t.length >= 3) DATABASE.push({
+                            id: Math.random(), t: t, d: String(r[1]||'S/ Desc'), 
+                            da: String(r[2]||'-'), s: String(r[3]||'-'), 
+                            v: String(r[4]||'0,00'), m: file.name
+                        });
                     });
                 });
                 res();
@@ -115,18 +160,23 @@ document.getElementById('fileInput').addEventListener('change', async function(e
             reader.readAsArrayBuffer(file);
         });
     }
-    localStorage.setItem('pat_db_v5', JSON.stringify(DATABASE));
-    carregar();
+    salvar();
+    this.value = '';
 });
 
 async function toggleCamera() {
-    if (typeof Tesseract === 'undefined') return alert("A câmera com leitura automática precisa de internet.");
+    if (typeof Tesseract === 'undefined') return alert("A câmera requer internet para processar a imagem.");
     const w = document.getElementById('cameraWrap');
-    if(window.s) { window.s.getTracks().forEach(t=>t.stop()); window.s=null; w.style.display='none'; }
-    else {
-        window.s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-        document.getElementById('video').srcObject = window.s;
-        w.style.display='block';
+    if(window.s) { 
+        window.s.getTracks().forEach(t=>t.stop()); 
+        window.s=null; 
+        w.style.display='none'; 
+    } else {
+        try {
+            window.s = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+            document.getElementById('video').srcObject = window.s;
+            w.style.display='block';
+        } catch(e) { alert("Câmera indisponível"); }
     }
 }
 
