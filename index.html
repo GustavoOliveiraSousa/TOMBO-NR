@@ -3,76 +3,214 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BUSCA OFFLINE - Patrimônio</title>
+    <title>Patrimônio Pro + OCR — Nova Russas</title>
+    <!-- Bibliotecas: Excel e OCR -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
     <style>
-        :root { --primary: #3b82f6; --bg: #0b0d11; --surface: #13161e; --text: #e2e8f0; --border: rgba(255,255,255,0.1); }
-        body { font-family: sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
-        .search-input { 
-            width: 100%; background: #1b1f2b; border: 2px solid var(--primary); 
-            border-radius: 10px; padding: 15px; color: white; font-size: 22px; 
-            margin-bottom: 20px; outline: none;
-        }
-        .card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 15px; margin-bottom: 10px; }
-        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .count { font-size: 14px; color: var(--primary); font-weight: bold; }
+        :root { --primary: #4f8cff; --bg: #0f1115; --card-bg: #1a1f2b; --border: #2a2f3a; --success: #10b981; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #e5e7eb; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        
+        /* Gerenciador de Módulos */
+        .module-manager { background: var(--card-bg); border: 1px solid var(--border); padding: 15px; border-radius: 12px; margin-bottom: 20px; }
+        .module-list { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+        .module-tag { background: #2a2f3a; padding: 5px 12px; border-radius: 20px; font-size: 12px; display: flex; align-items: center; gap: 8px; border: 1px solid var(--primary); }
+        .btn-remove { color: #ff4f4f; cursor: pointer; font-weight: bold; }
+        
+        /* Busca Fixa e OCR */
+        .header-sticky { position: sticky; top: 0; background: var(--bg); padding: 10px 0; z-index: 100; border-bottom: 1px solid var(--border); }
+        .search-group { display: flex; gap: 8px; }
+        .search-box { flex-grow: 1; padding: 15px; border-radius: 10px; border: 1px solid var(--border); background: #121622; color: white; font-size: 18px; }
+        .btn-ocr { background: var(--primary); border: none; border-radius: 10px; padding: 0 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        
+        /* Preview da Câmera */
+        #camera-preview { display: none; width: 100%; max-width: 400px; margin: 10px auto; border-radius: 12px; border: 2px solid var(--primary); overflow: hidden; position: relative; }
+        #video { width: 100%; display: block; }
+        .ocr-loading { display: none; text-align: center; color: var(--primary); font-size: 12px; margin-top: 5px; }
+
+        /* Cards */
+        .card-list { margin-top: 20px; }
+        .card { background: linear-gradient(145deg, #1a1f2b, #121622); border-radius: 12px; padding: 15px; border: 1px solid var(--border); margin-bottom: 10px; }
+        .card.hidden { display: none; }
+        .card h3 { color: var(--primary); margin: 0 0 10px 0; font-size: 1.1rem; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; font-size: 12px; border-top: 1px solid #333; pt: 8px; }
+        .label { color: #6b7280; text-transform: uppercase; font-size: 10px; }
+        
+        .status-bar { display: flex; justify-content: space-between; font-size: 12px; color: var(--primary); margin: 5px 0; }
+        .btn-add { background: var(--primary); color: white; border: none; padding: 8px 15px; border-radius: 6px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <div style="font-weight:bold; font-size:18px">Patrimônio Pro</div>
-    <div id="totalCount" class="count">0 itens</div>
+<div class="container">
+    <div class="module-manager">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h4 style="margin:0">📦 Gerenciador de Patrimônio OCR</h4>
+            <button class="btn-add" onclick="document.getElementById('fileInput').click()">+ Módulo Excel</button>
+            <input type="file" id="fileInput" hidden accept=".xlsx, .xls">
+        </div>
+        <div class="module-list" id="moduleList"></div>
+        <div class="status-bar">
+            <span id="totalItems">Itens: 0</span>
+        </div>
+    </div>
+
+    <div class="header-sticky">
+        <div class="search-group">
+            <input type="number" id="searchInput" class="search-box" placeholder="Digite ou use a câmera..." oninput="filtrar()">
+            <button class="btn-ocr" onclick="toggleCamera()" title="Ler placa por foto">
+                <span style="font-size: 24px;">📷</span>
+            </button>
+        </div>
+        <div id="camera-preview">
+            <video id="video" autoplay playsinline></video>
+            <button onclick="capturarFoto()" style="position:absolute; bottom:10px; left:50%; transform:translateX(-50%); padding:10px 20px; border-radius:20px; border:none; background:white; font-weight:bold;">TIRAR FOTO</button>
+        </div>
+        <div id="ocr-msg" class="ocr-loading">Processando imagem... aguarde.</div>
+    </div>
+
+    <div id="cardContainer" class="card-list"></div>
 </div>
 
-<input type="text" id="searchInput" class="search-input" placeholder="Digite o tombo aqui..." onkeyup="filtrar()">
-
-<div id="cardContainer"></div>
-
 <script>
-    let DATABASE = [];
+let DATABASE = [];
+let stream = null;
 
-    // Carrega o que já está salvo no seu celular das versões anteriores
-    function carregar() {
-        const raw = localStorage.getItem('pat_db_v5');
-        DATABASE = raw ? JSON.parse(raw) : [];
-        document.getElementById('totalCount').textContent = DATABASE.length + " itens carregados";
-        filtrar();
+window.onload = () => {
+    const savedData = localStorage.getItem('patrimonio_db');
+    if (savedData) {
+        DATABASE = JSON.parse(savedData);
+        atualizarInterface();
     }
+    renderModules();
+};
 
-    function filtrar() {
-        const term = document.getElementById('searchInput').value.toLowerCase();
-        const container = document.getElementById('cardContainer');
-        
-        if (term.length < 2 && term !== "") {
-            container.innerHTML = '<div style="opacity:0.5; text-align:center">Digite ao menos 2 números...</div>';
-            return;
+// CÂMERA E OCR
+async function toggleCamera() {
+    const preview = document.getElementById('camera-preview');
+    if (stream) {
+        pararCamera();
+        preview.style.display = 'none';
+    } else {
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+            document.getElementById('video').srcObject = stream;
+            preview.style.display = 'block';
+        } catch (err) {
+            alert("Erro ao acessar câmera: " + err);
         }
-
-        const lista = DATABASE.filter(i => i.t.includes(term));
-        const mostrados = new Set();
-        
-        const html = lista.filter(item => {
-            if (mostrados.has(item.t)) return false;
-            mostrados.add(item.t);
-            return true;
-        }).map(i => `
-            <div class="card">
-                <div style="display:flex; justify-content:space-between; opacity:0.6; font-size:12px">
-                    <span>${i.m}</span><b>#${i.t}</b>
-                </div>
-                <div style="margin:10px 0; font-size:16px; font-weight:500">${i.d}</div>
-                <div style="font-size:11px; border-top:1px solid var(--border); padding-top:10px; display:grid; grid-template-columns: 1fr 1fr">
-                    <div>Status: ${i.s}</div>
-                    <div>Data: ${i.da}</div>
-                </div>
-            </div>
-        `).join('');
-
-        container.innerHTML = html || '<div style="text-align:center; padding:20px; opacity:0.3">Nenhum tombo encontrado.</div>';
     }
+}
 
-    // Inicia na hora
-    carregar();
+function pararCamera() {
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+        stream = null;
+    }
+}
+
+async function capturarFoto() {
+    const video = document.getElementById('video');
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    
+    document.getElementById('ocr-msg').style.display = 'block';
+    pararCamera();
+    document.getElementById('camera-preview').style.display = 'none';
+
+    // Executa o OCR (Tesseract)
+    Tesseract.recognize(canvas, 'eng', { logger: m => console.log(m) }).then(({ data: { text } }) => {
+        // Extrai apenas os números da leitura
+        const numeros = text.replace(/[^0-9]/g, "");
+        if (numeros) {
+            document.getElementById('searchInput').value = numeros;
+            filtrar();
+        } else {
+            alert("Não foi possível identificar números na imagem.");
+        }
+        document.getElementById('ocr-msg').style.display = 'none';
+    });
+}
+
+// LOGICA DE EXCEL (Igual à anterior)
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        const data = new Uint8Array(event.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        let newItems = [];
+
+        workbook.SheetNames.forEach(sheetName => {
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
+            rows.forEach(row => {
+                const tomboRaw = String(row[0] || "");
+                const cleanTombo = tomboRaw.replace(/[^0-9]/g, "");
+                if (cleanTombo && cleanTombo.length >= 4 && cleanTombo.length <= 6) {
+                    newItems.push({ t: cleanTombo, d: row[1] || "Sem descrição", da: row[2] || "-", s: row[3] || "Novo", v: row[4] || "0,00", m: file.name });
+                }
+            });
+        });
+
+        const map = new Map(DATABASE.map(item => [item.t, item]));
+        newItems.forEach(item => map.set(item.t, item));
+        DATABASE = Array.from(map.values()).sort((a, b) => parseInt(a.t) - parseInt(b.t));
+
+        localStorage.setItem('patrimonio_db', JSON.stringify(DATABASE));
+        atualizarInterface();
+        renderModules();
+    };
+    reader.readAsArrayBuffer(file);
+});
+
+function renderModules() {
+    const list = document.getElementById('moduleList');
+    const modules = [...new Set(DATABASE.map(i => i.m))];
+    list.innerHTML = modules.map(m => `
+        <div class="module-tag">${m} <span class="btn-remove" onclick="removerModulo('${m}')">×</span></div>
+    `).join('');
+}
+
+function removerModulo(nomeModulo) {
+    DATABASE = DATABASE.filter(i => i.m !== nomeModulo);
+    localStorage.setItem('patrimonio_db', JSON.stringify(DATABASE));
+    atualizarInterface();
+    renderModules();
+}
+
+function atualizarInterface() {
+    document.getElementById('totalItems').innerText = `Itens: ${DATABASE.length}`;
+    renderCards(DATABASE);
+}
+
+function renderCards(lista) {
+    const container = document.getElementById('cardContainer');
+    container.innerHTML = lista.map(i => `
+        <div class="card" data-tombo="${i.t}">
+            <div style="display:flex; justify-content:space-between"><span class="label">${i.m}</span><h3 style="margin:0">#${i.t}</h3></div>
+            <div class="desc">${i.d}</div>
+            <div class="grid">
+                <div><span class="label">Situação</span><br><b>${i.s}</b></div>
+                <div><span class="label">Data</span><br><b>${i.da}</b></div>
+                <div><span class="label">Valor</span><br><b>R$ ${i.v}</b></div>
+            </div>
+        </div>
+    `).join('');
+}
+
+function filtrar() {
+    const termo = document.getElementById('searchInput').value;
+    const cards = document.querySelectorAll('.card');
+    cards.forEach(card => {
+        const tombo = card.getAttribute('data-tombo');
+        card.classList.toggle('hidden', !tombo.startsWith(termo));
+    });
+}
 </script>
 </body>
 </html>
