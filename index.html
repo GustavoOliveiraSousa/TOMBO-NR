@@ -67,7 +67,8 @@
     <div class="modules-bar">
         <div id="moduleList" style="flex:1; display:flex; gap:8px; flex-wrap:wrap"></div>
         <button class="btn-add" onclick="document.getElementById('fileInput').click()">+ Excel</button>
-        <input type="file" id="fileInput" hidden accept=".xlsx,.xls" multiple>
+        <!-- ATUALIZADO: Aceita .xlsm agora -->
+        <input type="file" id="fileInput" hidden accept=".xlsx,.xls,.xlsm" multiple>
     </div>
 
     <div id="cardContainer"></div>
